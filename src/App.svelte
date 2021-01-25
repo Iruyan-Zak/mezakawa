@@ -1,11 +1,17 @@
 <script>
+	let audioCtx;
+	let analyser;
+	let bufferLength;
+	let dataArray;
+	const WIDTH = 500;
+	const HEIGHT = 200;
 	const initialize = async () => {
-		const audioCtx = new (window.AudioContext ||
-			window.webkitAudioContext)();
-		const analyser = audioCtx.createAnalyser();
-	analyser.fftSize = 32768;
-
 		try {
+			audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+			analyser = audioCtx.createAnalyser();
+			analyser.fftSize = 32768;
+			bufferLength = analyser.frequencyBinCount;
+			dataArray = new Uint8Array(bufferLength);
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: true,
 			});
@@ -17,85 +23,72 @@
 
 	let canvas_waveTime;
 	let canvas_waveFreqency;
-	let canvasCtx1 = canvas1.getContext("2d");
-	let canvasCtx2 = canvas2.getContext("2d");
-	let WIDTH = (canvas1.width = canvas2.width = 500);
-	let HEIGHT = (canvas1.height = canvas2.height = 200);
+	const startRenderWaveTime = () => {
+		const ctx = canvas_waveTime.getContext("2d");
+		let frame;
+		loop();
 
-	let stream;
-	startButton.onclick = async () => {
-		if (stream) return;
-		draw();
+		function loop(t) {
+			console.log(t);
+			frame = requestAnimationFrame(loop);
+			analyser.getByteTimeDomainData(dataArray);
+			ctx.fillStyle = "rgb(200, 200, 200)";
+			ctx.fillRect(0, 0, WIDTH, HEIGHT);
+			ctx.lineWidth = 2;
+			ctx.strokeStyle = "rgb(0, 0, 0)";
+			ctx.beginPath();
+			let sliceWidth = (WIDTH * 1.0) / bufferLength;
+			for (let i = 0; i < bufferLength; i++) {
+				let v = dataArray[i] / 128.0;
+				let x = i * sliceWidth;
+				let y = (v * HEIGHT) / 2;
+				if (i === 0) {
+					ctx.moveTo(x, y);
+				} else {
+					ctx.lineTo(x, y);
+				}
+			}
+			ctx.lineTo(WIDTH, HEIGHT / 2);
+			ctx.stroke();
+		}
 	};
 
-	var bufferLength = analyser.frequencyBinCount;
-	var dataArray = new Uint8Array(bufferLength);
+	const startRenderWaveFreqency = () => {
+		const ctx = canvas_waveFreqency.getContext("2d");
+		let frame = requestAnimationFrame(loop);
+
+		function loop(t) {
+			frame = requestAnimationFrame(loop);
+			analyser.getByteFrequencyData(dataArray);
+			ctx.fillStyle = "rgb(200, 200, 200)";
+			ctx.fillRect(0, 0, WIDTH, HEIGHT);
+			ctx.lineWidth = 2;
+			ctx.strokeStyle = "rgb(0, 0, 0)";
+			ctx.beginPath();
+			let sliceWidth = (WIDTH * 1.0) / bufferLength;
+			let peak = 0;
+			let peaki = 0;
+			for (let i = 0; i < bufferLength; i++) {
+				let v = dataArray[i] / 256.0;
+				let x = i * sliceWidth;
+				let y = (1 - v) * HEIGHT;
+				if (i === 0) {
+					ctx.moveTo(x, y);
+				} else {
+					ctx.lineTo(x, y);
+				}
+				if (peak < v) {
+					peak = v;
+					peaki = i;
+				}
+			}
+			ctx.lineTo(WIDTH, HEIGHT);
+			ctx.stroke();
+			// let hz = Math.round((peaki / bufferLength) * 24000);
+		}
+	};
 
 	// draw an oscilloscope of the current audio source
-
-	function draw() {
-		if (stream) requestAnimationFrame(draw);
-		draw1();
-		draw2();
-	}
-
-	function draw1() {
-		analyser.getByteTimeDomainData(dataArray);
-		canvasCtx1.fillStyle = "rgb(200, 200, 200)";
-		canvasCtx1.fillRect(0, 0, WIDTH, HEIGHT);
-		canvasCtx1.lineWidth = 2;
-		canvasCtx1.strokeStyle = "rgb(0, 0, 0)";
-		canvasCtx1.beginPath();
-		let sliceWidth = (WIDTH * 1.0) / bufferLength;
-		for (let i = 0; i < bufferLength; i++) {
-			let v = dataArray[i] / 128.0;
-			let x = i * sliceWidth;
-			let y = (v * HEIGHT) / 2;
-			if (i === 0) {
-				canvasCtx1.moveTo(x, y);
-			} else {
-				canvasCtx1.lineTo(x, y);
-			}
-		}
-		canvasCtx1.lineTo(WIDTH, HEIGHT / 2);
-		canvasCtx1.stroke();
-	}
-
-	function draw2() {
-		analyser.getByteFrequencyData(dataArray);
-		canvasCtx2.fillStyle = "rgb(200, 200, 200)";
-		canvasCtx2.fillRect(0, 0, WIDTH, HEIGHT);
-		canvasCtx2.lineWidth = 2;
-		canvasCtx2.strokeStyle = "rgb(0, 0, 0)";
-		canvasCtx2.beginPath();
-		let sliceWidth = (WIDTH * 1.0) / bufferLength;
-		let peak = 0;
-		let peaki = 0;
-		for (let i = 0; i < bufferLength; i++) {
-			let v = dataArray[i] / 256.0;
-			let x = i * sliceWidth;
-			let y = (1 - v) * HEIGHT;
-			if (i === 0) {
-				canvasCtx2.moveTo(x, y);
-			} else {
-				canvasCtx2.lineTo(x, y);
-			}
-			if (peak < v) {
-				peak = v;
-				peaki = i;
-			}
-		}
-		canvasCtx2.lineTo(WIDTH, HEIGHT);
-		canvasCtx2.stroke();
-		let hz = Math.round((peaki / bufferLength) * 24000);
-		freq.textContent = hz.toString();
-	}
-
-	// draw();
-
-	logButton.onclick = () => {
-		log.textContent += " " + freq.textContent;
-	};
 
 	let systemStarted = Promise.reject("開始してください。");
 	const onClickStart = () => {
@@ -105,10 +98,23 @@
 
 <main>
 	<div>
-		<button>stop</button>
 		{#await systemStarted then _}
 			<div>
 				<button>stop</button>
+			</div>
+			<div>
+				<canvas
+					bind:this={canvas_waveTime}
+					on:click={startRenderWaveTime}
+					width={500}
+					height={200}
+				/>
+				<canvas
+					bind:this={canvas_waveFreqency}
+					on:click={startRenderWaveFreqency}
+					width={500}
+					height={200}
+				/>
 			</div>
 		{:catch message}
 			<div>
@@ -117,12 +123,8 @@
 					message: {message}
 				</p>
 				<div>
-					<button onclick={onClickStart}>start</button>
+					<button on:click={onClickStart}>start</button>
 				</div>
-			</div>
-			<div>
-				<canvas bind:this={canvas_waveTime}></canvas>
-				<canvas bind:this={canvas_waveFreqency}></canvas>
 			</div>
 		{/await}
 	</div>
