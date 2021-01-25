@@ -1,101 +1,131 @@
 <script>
-var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-var analyser = audioCtx.createAnalyser();
+	const initialize = async () => {
+		const audioCtx = new (window.AudioContext ||
+			window.webkitAudioContext)();
+		const analyser = audioCtx.createAnalyser();
+	analyser.fftSize = 32768;
 
-let canvasCtx1 = canvas1.getContext("2d");
-let canvasCtx2 = canvas2.getContext("2d");
-let WIDTH = canvas1.width = canvas2.width = 500;
-let HEIGHT = canvas1.height = canvas2.height = 200;
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: true,
+			});
+			audioCtx.createMediaStreamSource(stream).connect(analyser);
+		} catch (err) {
+			errorMessage.textContent = err.toString();
+		}
+	};
 
-let stream;
-startButton.onclick = async () => {
-  if (stream) return;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: true
-    });
-    audioCtx.createMediaStreamSource(stream).connect(analyser);
-    draw();
-  } catch (err) {
-    errorMessage.textContent = err.toString();
-  }
-};
+	let canvas_waveTime;
+	let canvas_waveFreqency;
+	let canvasCtx1 = canvas1.getContext("2d");
+	let canvasCtx2 = canvas2.getContext("2d");
+	let WIDTH = (canvas1.width = canvas2.width = 500);
+	let HEIGHT = (canvas1.height = canvas2.height = 200);
 
-analyser.fftSize = 32768;
-var bufferLength = analyser.frequencyBinCount;
-var dataArray = new Uint8Array(bufferLength);
+	let stream;
+	startButton.onclick = async () => {
+		if (stream) return;
+		draw();
+	};
 
-// draw an oscilloscope of the current audio source
+	var bufferLength = analyser.frequencyBinCount;
+	var dataArray = new Uint8Array(bufferLength);
 
-function draw() {
-  if (stream) requestAnimationFrame(draw);
-  draw1();
-  draw2();
-}
+	// draw an oscilloscope of the current audio source
 
-function draw1() {
-  analyser.getByteTimeDomainData(dataArray);
-  canvasCtx1.fillStyle = "rgb(200, 200, 200)";
-  canvasCtx1.fillRect(0, 0, WIDTH, HEIGHT);
-  canvasCtx1.lineWidth = 2;
-  canvasCtx1.strokeStyle = "rgb(0, 0, 0)";
-  canvasCtx1.beginPath();
-  let sliceWidth = (WIDTH * 1.0) / bufferLength;
-  for (let i = 0; i < bufferLength; i++) {
-    let v = dataArray[i] / 128.0;
-    let x = i * sliceWidth;
-    let y = v * HEIGHT / 2;
-    if (i === 0) {
-      canvasCtx1.moveTo(x, y);
-    } else {
-      canvasCtx1.lineTo(x, y);
-    }
-  }
-  canvasCtx1.lineTo(WIDTH, HEIGHT / 2);
-  canvasCtx1.stroke();
-}
+	function draw() {
+		if (stream) requestAnimationFrame(draw);
+		draw1();
+		draw2();
+	}
 
-function draw2() {
-  analyser.getByteFrequencyData(dataArray);
-  canvasCtx2.fillStyle = "rgb(200, 200, 200)";
-  canvasCtx2.fillRect(0, 0, WIDTH, HEIGHT);
-  canvasCtx2.lineWidth = 2;
-  canvasCtx2.strokeStyle = "rgb(0, 0, 0)";
-  canvasCtx2.beginPath();
-  let sliceWidth = (WIDTH * 1.0) / bufferLength;
-  let peak = 0;
-  let peaki = 0;
-  for (let i = 0; i < bufferLength; i++) {
-    let v = dataArray[i] / 256.0;
-    let x = i * sliceWidth;
-    let y = (1 - v) * HEIGHT;
-    if (i === 0) {
-      canvasCtx2.moveTo(x, y);
-    } else {
-      canvasCtx2.lineTo(x, y);
-    }
-    if (peak < v) {
-      peak = v;
-      peaki = i;
-    }
-  }
-  canvasCtx2.lineTo(WIDTH, HEIGHT);
-  canvasCtx2.stroke();
-  let hz = Math.round(peaki / bufferLength * 24000);
-  freq.textContent = hz.toString();
-}
+	function draw1() {
+		analyser.getByteTimeDomainData(dataArray);
+		canvasCtx1.fillStyle = "rgb(200, 200, 200)";
+		canvasCtx1.fillRect(0, 0, WIDTH, HEIGHT);
+		canvasCtx1.lineWidth = 2;
+		canvasCtx1.strokeStyle = "rgb(0, 0, 0)";
+		canvasCtx1.beginPath();
+		let sliceWidth = (WIDTH * 1.0) / bufferLength;
+		for (let i = 0; i < bufferLength; i++) {
+			let v = dataArray[i] / 128.0;
+			let x = i * sliceWidth;
+			let y = (v * HEIGHT) / 2;
+			if (i === 0) {
+				canvasCtx1.moveTo(x, y);
+			} else {
+				canvasCtx1.lineTo(x, y);
+			}
+		}
+		canvasCtx1.lineTo(WIDTH, HEIGHT / 2);
+		canvasCtx1.stroke();
+	}
 
-draw();
+	function draw2() {
+		analyser.getByteFrequencyData(dataArray);
+		canvasCtx2.fillStyle = "rgb(200, 200, 200)";
+		canvasCtx2.fillRect(0, 0, WIDTH, HEIGHT);
+		canvasCtx2.lineWidth = 2;
+		canvasCtx2.strokeStyle = "rgb(0, 0, 0)";
+		canvasCtx2.beginPath();
+		let sliceWidth = (WIDTH * 1.0) / bufferLength;
+		let peak = 0;
+		let peaki = 0;
+		for (let i = 0; i < bufferLength; i++) {
+			let v = dataArray[i] / 256.0;
+			let x = i * sliceWidth;
+			let y = (1 - v) * HEIGHT;
+			if (i === 0) {
+				canvasCtx2.moveTo(x, y);
+			} else {
+				canvasCtx2.lineTo(x, y);
+			}
+			if (peak < v) {
+				peak = v;
+				peaki = i;
+			}
+		}
+		canvasCtx2.lineTo(WIDTH, HEIGHT);
+		canvasCtx2.stroke();
+		let hz = Math.round((peaki / bufferLength) * 24000);
+		freq.textContent = hz.toString();
+	}
 
-logButton.onclick = () => {
-  log.textContent += " " + freq.textContent;
-};
+	// draw();
 
+	logButton.onclick = () => {
+		log.textContent += " " + freq.textContent;
+	};
+
+	let systemStarted = Promise.reject("開始してください。");
+	const onClickStart = () => {
+		systemStarted = initialize();
+	};
 </script>
 
 <main>
-	<h1>Hello {name}!</h1>
-	<p>Visit the <a href="https://svelte.dev/tutorial">Svelte tutorial</a> to learn how to build Svelte apps.</p>
+	<div>
+		<button>stop</button>
+		{#await systemStarted then _}
+			<div>
+				<button>stop</button>
+			</div>
+		{:catch message}
+			<div>
+				<p>メッセージエリア</p>
+				<p>
+					message: {message}
+				</p>
+				<div>
+					<button onclick={onClickStart}>start</button>
+				</div>
+			</div>
+			<div>
+				<canvas bind:this={canvas_waveTime}></canvas>
+				<canvas bind:this={canvas_waveFreqency}></canvas>
+			</div>
+		{/await}
+	</div>
 </main>
 
 <style>
